@@ -2,14 +2,15 @@
 
 mod impls;
 
-// Using core instead of std for no_std support
-use core::num::ParseIntError;
+use crate::TlpError;
+use byteorder::{BigEndian, ByteOrder};
+use core::num::ParseIntError; // Using core instead of std for no_std support
 
 #[cfg(test)]
 use proptest_derive::Arbitrary;
 
 /// Configuration space address that identifies a device on the PCIe fabric
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct DeviceID {
     /// PCIe bus
@@ -97,6 +98,23 @@ impl DeviceID {
             bus,
             device,
             function,
+        }
+    }
+}
+
+impl TryFrom<&[u8]> for DeviceID {
+    type Error = TlpError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        use core::cmp::Ordering;
+
+        match value.len().cmp(&2) {
+            Ordering::Less => Err(TlpError::TooShort),
+            Ordering::Greater => Err(TlpError::TooLong),
+            Ordering::Equal => {
+                let did = BigEndian::read_u16(&value[0..2]);
+                Ok(did.into())
+            }
         }
     }
 }
